@@ -1,0 +1,13 @@
+apiVersion: mcp.kafka/v1alpha1
+package: events
+events:
+  - name: order_created
+    schema: order-created.avsc
+    kafka:
+      topic: orders.created
+      subject: orders.created-value
+      key:
+        field: orderId
+    mcp:
+      tool: publish_order_created
+      description: Publish an OrderCreated domain event.
