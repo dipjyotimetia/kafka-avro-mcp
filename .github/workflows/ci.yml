@@ -1,13 +1,14 @@
 name: CI
-on: [push, pull_request]
+on: [pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with: { go-version: '1.27.x' }
       - run: go test ./...
       - run: go vet ./...
+      - run: go run ./cmd/avro-gen-go-mcp validate --config examples/orders/kafka.mcp.yaml
       - run: go run ./cmd/avro-gen-go-mcp generate --config examples/orders/kafka.mcp.yaml --out examples/orders/gen
       - run: git diff --exit-code

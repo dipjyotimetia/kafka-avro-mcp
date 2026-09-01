@@ -31,9 +31,14 @@ events:
 		t.Fatal(err)
 	}
 	text := string(generated)
-	for _, want := range []string{"RegisterGoSDK", "RegisterMCPGo", "orders.created", "orders.created-value", "publish_order_created"} {
+	for _, want := range []string{"RegisterTools", "runtime.MCPServer", "orders.created", "orders.created-value", "publish_order_created"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("generated output does not contain %q", want)
+		}
+	}
+	for _, forbidden := range []string{"modelcontextprotocol/go-sdk", "mark3labs/mcp-go"} {
+		if strings.Contains(text, forbidden) {
+			t.Errorf("generated output must not import %q", forbidden)
 		}
 	}
 }
