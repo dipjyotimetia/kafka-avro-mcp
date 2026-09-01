@@ -42,12 +42,27 @@ type Publisher interface {
 }
 
 type Service struct {
-	resolver  SchemaResolver
-	publisher Publisher
+	resolver        SchemaResolver
+	publisher       Publisher
+	maxMessageBytes int
 }
 
-func NewService(resolver SchemaResolver, publisher Publisher) *Service {
-	return &Service{resolver: resolver, publisher: publisher}
+type ServiceOption func(*Service)
+
+func WithMaxMessageBytes(limit int) ServiceOption {
+	return func(s *Service) {
+		if limit > 0 {
+			s.maxMessageBytes = limit
+		}
+	}
+}
+
+func NewService(resolver SchemaResolver, publisher Publisher, options ...ServiceOption) *Service {
+	service := &Service{resolver: resolver, publisher: publisher, maxMessageBytes: 1 << 20}
+	for _, option := range options {
+		option(service)
+	}
+	return service
 }
 
 func (s *Service) Publish(ctx context.Context, tool Tool, payload map[string]any) (PublishResult, error) {
@@ -69,6 +84,9 @@ func (s *Service) Publish(ctx context.Context, tool Tool, payload map[string]any
 	encoded, err := schema.Encode(payload)
 	if err != nil {
 		return PublishResult{}, fmt.Errorf("encode Avro payload: %w", err)
+	}
+	if len(encoded) > s.maxMessageBytes {
+		return PublishResult{}, fmt.Errorf("encoded Avro payload exceeds %d byte limit", s.maxMessageBytes)
 	}
 	value := make([]byte, 5+len(encoded))
 	binary.BigEndian.PutUint32(value[1:5], uint32(schemaID))

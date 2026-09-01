@@ -9,5 +9,6 @@ jobs:
         with: { go-version: '1.27.x' }
       - run: go test ./...
       - run: go vet ./...
+      - run: go run ./cmd/avro-gen-go-mcp validate --config examples/orders/kafka.mcp.yaml
       - run: go run ./cmd/avro-gen-go-mcp generate --config examples/orders/kafka.mcp.yaml --out examples/orders/gen
       - run: git diff --exit-code

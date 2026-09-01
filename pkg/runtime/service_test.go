@@ -42,3 +42,11 @@ func TestServiceRejectsNonStringConfiguredKey(t *testing.T) {
 		t.Fatal("Publish() accepted a non-string configured key")
 	}
 }
+
+func TestServiceRejectsEncodedPayloadOverConfiguredLimit(t *testing.T) {
+	service := NewService(resolverStub{id: 1}, &publisherStub{}, WithMaxMessageBytes(1))
+	_, err := service.Publish(context.Background(), Tool{Topic: "orders.created", Subject: "orders.created-value", Schema: []byte(`{"type":"record","name":"OrderCreated","fields":[{"name":"value","type":"string"}]}`)}, map[string]any{"value": "too large"})
+	if err == nil {
+		t.Fatal("Publish() accepted payload exceeding configured limit")
+	}
+}
