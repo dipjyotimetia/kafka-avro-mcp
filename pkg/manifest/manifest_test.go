@@ -59,3 +59,18 @@ events:
 		t.Fatal("Load() succeeded with duplicate MCP tool names")
 	}
 }
+
+func TestLoadRejectsProviderUnsafeToolName(t *testing.T) {
+	_, err := Load([]byte(`
+apiVersion: mcp.kafka/v1alpha1
+package: orders
+events:
+  - name: created
+    schema: created.avsc
+    kafka: { topic: orders.created, subject: orders.created-value }
+    mcp: { tool: "publish order" }
+`))
+	if err == nil {
+		t.Fatal("Load() accepted an unsafe MCP tool name")
+	}
+}

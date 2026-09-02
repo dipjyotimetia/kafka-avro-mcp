@@ -3,12 +3,15 @@ package manifest
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
 const APIVersion = "mcp.kafka/v1alpha1"
+
+var toolName = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,63}$`)
 
 type Config struct {
 	APIVersion string  `yaml:"apiVersion"`
@@ -65,6 +68,9 @@ func Load(data []byte) (*Config, error) {
 		}
 		if strings.TrimSpace(event.MCP.Tool) == "" {
 			return nil, fmt.Errorf("%s mcp.tool is required", at)
+		}
+		if !toolName.MatchString(event.MCP.Tool) {
+			return nil, fmt.Errorf("%s mcp.tool %q must match %s", at, event.MCP.Tool, toolName)
 		}
 		if _, ok := names[event.Name]; ok {
 			return nil, fmt.Errorf("duplicate event name %q", event.Name)

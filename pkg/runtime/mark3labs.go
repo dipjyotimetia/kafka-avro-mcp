@@ -8,12 +8,20 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func RegisterMCPGo(s *server.MCPServer, service *Service, tool Tool, inputSchema json.RawMessage, description string) {
-	s.AddTool(mcp.NewToolWithRawSchema(tool.Name, description, inputSchema), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		result, err := service.Publish(ctx, tool, request.GetArguments())
+type mcpGoAdapter struct{ server *server.MCPServer }
+
+func WrapMCPGo(server *server.MCPServer) MCPServer { return &mcpGoAdapter{server: server} }
+
+func (a *mcpGoAdapter) AddTool(tool ToolDefinition, handler ToolHandler) {
+	a.server.AddTool(mcp.NewToolWithRawSchema(tool.Name, tool.Description, tool.InputSchema), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		arguments, err := json.Marshal(request.GetArguments())
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		return mcp.NewToolResultJSON(result)
+		result := handler(ctx, CallToolRequest{Arguments: arguments})
+		if result.IsError {
+			return mcp.NewToolResultError(result.Error), nil
+		}
+		return mcp.NewToolResultJSON(result.StructuredContent)
 	})
 }
