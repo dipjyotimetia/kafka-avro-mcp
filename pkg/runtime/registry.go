@@ -42,7 +42,7 @@ type RegistryResolver struct {
 
 func (r *RegistryResolver) Resolve(ctx context.Context, subject string, local []byte) (int, error) {
 	if r.Client == nil {
-		return 0, fmt.Errorf("Schema Registry client is required")
+		return 0, fmt.Errorf("no Schema Registry client configured")
 	}
 	key := subject + "\x00" + string(local)
 	r.mu.Lock()
