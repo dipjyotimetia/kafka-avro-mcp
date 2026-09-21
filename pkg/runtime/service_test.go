@@ -42,3 +42,37 @@ func TestServiceRejectsNonStringConfiguredKey(t *testing.T) {
 		t.Fatal("Publish() accepted a non-string configured key")
 	}
 }
+
+func TestServiceRejectsEncodedPayloadOverConfiguredLimit(t *testing.T) {
+	service := NewService(resolverStub{id: 1}, &publisherStub{}, WithMaxMessageBytes(1))
+	_, err := service.Publish(context.Background(), Tool{Topic: "orders.created", Subject: "orders.created-value", Schema: []byte(`{"type":"record","name":"OrderCreated","fields":[{"name":"value","type":"string"}]}`)}, map[string]any{"value": "too large"})
+	if err == nil {
+		t.Fatal("Publish() accepted payload exceeding configured limit")
+	}
+}
+
+// The limit applies to the produced record, not the bare Avro payload: a
+// payload that fits exactly still overflows once the 5-byte wire header and
+// the key are added.
+func TestServiceCountsWireHeaderAndKeyAgainstLimit(t *testing.T) {
+	// {"id":"k"} encodes to 2 Avro bytes (zigzag length + 'k'), the key is 1
+	// byte, and the Confluent wire header is 5, so the record is exactly 8.
+	publish := func(limit int) error {
+		service := NewService(resolverStub{id: 1}, &publisherStub{}, WithMaxMessageBytes(limit))
+		_, err := service.Publish(context.Background(), Tool{
+			Topic: "orders.created", Subject: "orders.created-value", KeyField: "id",
+			Schema: []byte(`{"type":"record","name":"E","fields":[{"name":"id","type":"string"}]}`),
+		}, map[string]any{"id": "k"})
+		return err
+	}
+	if err := publish(8); err != nil {
+		t.Fatalf("Publish() rejected a record exactly at the limit: %v", err)
+	}
+	if err := publish(7); err == nil {
+		t.Fatal("Publish() accepted a 8-byte record under a 7-byte limit")
+	}
+	// The payload alone is 2 bytes; only counting it would let this through.
+	if err := publish(2); err == nil {
+		t.Fatal("Publish() sized the Avro payload instead of the produced record")
+	}
+}

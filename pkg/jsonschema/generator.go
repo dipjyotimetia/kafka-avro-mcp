@@ -1,4 +1,5 @@
-// Package jsonschema converts the V1 Avro subset into JSON Schema 2020-12.
+// Package jsonschema converts the V1 Avro subset into JSON Schema 2020-12 and
+// validates the Avro-level constraints the generated tools rely on.
 package jsonschema
 
 import (
@@ -179,4 +180,33 @@ func primitiveSchema(kind string) (map[string]any, bool) {
 	default:
 		return nil, false
 	}
+}
+
+// ValidateKey reports whether field can serve as the Kafka message key for the
+// given Avro record: it must exist and be a non-null Avro string. An empty
+// field means the event is published without a key.
+func ValidateKey(field string, schemaJSON []byte) error {
+	if field == "" {
+		return nil
+	}
+	var root struct {
+		Fields []struct {
+			Name string          `json:"name"`
+			Type json.RawMessage `json:"type"`
+		} `json:"fields"`
+	}
+	if err := json.Unmarshal(schemaJSON, &root); err != nil {
+		return err
+	}
+	for _, candidate := range root.Fields {
+		if candidate.Name != field {
+			continue
+		}
+		var typ string
+		if json.Unmarshal(candidate.Type, &typ) != nil || typ != "string" {
+			return fmt.Errorf("key field %q must be a non-null Avro string", field)
+		}
+		return nil
+	}
+	return fmt.Errorf("key field %q does not exist", field)
 }

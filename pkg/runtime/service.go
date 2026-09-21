@@ -42,12 +42,27 @@ type Publisher interface {
 }
 
 type Service struct {
-	resolver  SchemaResolver
-	publisher Publisher
+	resolver        SchemaResolver
+	publisher       Publisher
+	maxMessageBytes int
 }
 
-func NewService(resolver SchemaResolver, publisher Publisher) *Service {
-	return &Service{resolver: resolver, publisher: publisher}
+type ServiceOption func(*Service)
+
+func WithMaxMessageBytes(limit int) ServiceOption {
+	return func(s *Service) {
+		if limit > 0 {
+			s.maxMessageBytes = limit
+		}
+	}
+}
+
+func NewService(resolver SchemaResolver, publisher Publisher, options ...ServiceOption) *Service {
+	service := &Service{resolver: resolver, publisher: publisher, maxMessageBytes: 1 << 20}
+	for _, option := range options {
+		option(service)
+	}
+	return service
 }
 
 func (s *Service) Publish(ctx context.Context, tool Tool, payload map[string]any) (PublishResult, error) {
@@ -69,6 +84,12 @@ func (s *Service) Publish(ctx context.Context, tool Tool, payload map[string]any
 	encoded, err := schema.Encode(payload)
 	if err != nil {
 		return PublishResult{}, fmt.Errorf("encode Avro payload: %w", err)
+	}
+	// Count the wire-format header and the key: the broker sizes the whole
+	// record, not the Avro payload alone. Kafka also charges per-record batch
+	// overhead, so this remains a lower bound on what the broker sees.
+	if size := 5 + len(encoded) + len(key); size > s.maxMessageBytes {
+		return PublishResult{}, fmt.Errorf("record of %d bytes exceeds %d byte limit", size, s.maxMessageBytes)
 	}
 	value := make([]byte, 5+len(encoded))
 	binary.BigEndian.PutUint32(value[1:5], uint32(schemaID))
