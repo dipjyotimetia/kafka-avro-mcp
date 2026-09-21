@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/dipjyotimetia/kafka-avro-mcp/pkg/jsonschema"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/twmb/avro"
 )
 
 type serverStub struct {
@@ -51,6 +53,7 @@ func TestWrapMCPGoPreservesOutputSchemaAndDestructiveHint(t *testing.T) {
 		OutputSchema json.RawMessage `json:"outputSchema"`
 		Annotations  struct {
 			DestructiveHint *bool `json:"destructiveHint"`
+			IdempotentHint  *bool `json:"idempotentHint"`
 		} `json:"annotations"`
 	}
 	if err := json.Unmarshal(encoded, &wire); err != nil {
@@ -64,5 +67,49 @@ func TestWrapMCPGoPreservesOutputSchemaAndDestructiveHint(t *testing.T) {
 	}
 	if wire.Annotations.DestructiveHint == nil || !*wire.Annotations.DestructiveHint {
 		t.Errorf("annotations.destructiveHint is not true in the advertised tool: %s", encoded)
+	}
+	// Publishing twice appends two records, and the hint is a *bool behind
+	// omitempty: a nil would drop it from the wire entirely.
+	if wire.Annotations.IdempotentHint == nil || *wire.Annotations.IdempotentHint {
+		t.Errorf("annotations.idempotentHint is not false in the advertised tool: %s", encoded)
+	}
+}
+
+// The runtime decodes arguments with UseNumber so that a long beyond
+// float64's exact-integer range survives. That only holds if the adapter
+// hands over the original wire bytes: mcp-go's GetArguments has already
+// unmarshalled every number into a float64.
+func TestWrapMCPGoPreservesIntegerPrecisionFromTheWire(t *testing.T) {
+	const schema = `{"type":"record","name":"Event","fields":[{"name":"id","type":"long"}]}`
+	input, err := jsonschema.Convert([]byte(schema))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mcpServer := server.NewMCPServer("test", "0.0.1")
+	publisher := &publisherStub{}
+	RegisterTool(WrapMCPGo(mcpServer), NewService(resolverStub{id: 1}, publisher),
+		Tool{Name: "publish", Topic: "orders.created", Subject: "orders.created-value", Schema: []byte(schema)},
+		json.RawMessage(input), "Publish.")
+
+	const id = 9007199254740993 // 2^53 + 1
+	response := mcpServer.HandleMessage(context.Background(), json.RawMessage(
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"publish","arguments":{"id":9007199254740993}}}`))
+	if response == nil {
+		t.Fatal("no response from the mcp-go server")
+	}
+	if publisher.event.Topic == "" {
+		encoded, _ := json.Marshal(response)
+		t.Fatalf("nothing was published: %s", encoded)
+	}
+	avroSchema, err := avro.Parse(schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if _, err := avroSchema.Decode(publisher.event.Value[5:], &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded["id"] != int64(id) {
+		t.Fatalf("published id = %v, want %d (the wire value, not its float64 rounding)", decoded["id"], int64(id))
 	}
 }

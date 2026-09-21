@@ -11,7 +11,7 @@ type KafkaPublisher struct{ Client *kgo.Client }
 
 func (p KafkaPublisher) Publish(ctx context.Context, event Event) (PublishResult, error) {
 	if p.Client == nil {
-		return PublishResult{}, fmt.Errorf("Kafka client is required")
+		return PublishResult{}, fmt.Errorf("no Kafka client configured")
 	}
 	record, err := p.Client.ProduceSync(ctx, &kgo.Record{Topic: event.Topic, Key: event.Key, Value: event.Value}).First()
 	if err != nil {

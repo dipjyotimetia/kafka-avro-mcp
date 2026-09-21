@@ -12,7 +12,8 @@ func WrapGoSDK(server *gomcp.Server) MCPServer { return &goSDKAdapter{server: se
 
 func (a *goSDKAdapter) AddTool(tool ToolDefinition, handler ToolHandler) {
 	destructive := tool.Annotations.DestructiveHint
-	a.server.AddTool(&gomcp.Tool{Name: tool.Name, Description: tool.Description, InputSchema: tool.InputSchema, OutputSchema: tool.OutputSchema, Annotations: &gomcp.ToolAnnotations{DestructiveHint: &destructive}}, func(ctx context.Context, request *gomcp.CallToolRequest) (*gomcp.CallToolResult, error) {
+	annotations := &gomcp.ToolAnnotations{DestructiveHint: &destructive, IdempotentHint: tool.Annotations.IdempotentHint}
+	a.server.AddTool(&gomcp.Tool{Name: tool.Name, Description: tool.Description, InputSchema: tool.InputSchema, OutputSchema: tool.OutputSchema, Annotations: annotations}, func(ctx context.Context, request *gomcp.CallToolRequest) (*gomcp.CallToolResult, error) {
 		result := handler(ctx, CallToolRequest{Arguments: request.Params.Arguments})
 		response := &gomcp.CallToolResult{IsError: result.IsError, StructuredContent: result.StructuredContent}
 		if result.IsError {

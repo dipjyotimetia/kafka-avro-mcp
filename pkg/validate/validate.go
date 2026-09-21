@@ -55,7 +55,7 @@ type RegistryChecker struct{ Client *sr.Client }
 
 func (c RegistryChecker) Check(ctx context.Context, subject string, schema []byte) error {
 	if c.Client == nil {
-		return fmt.Errorf("Schema Registry client is required")
+		return fmt.Errorf("no Schema Registry client configured")
 	}
 	if _, err := c.Client.LookupSchema(ctx, subject, sr.Schema{Schema: string(schema), Type: sr.TypeAvro}); err != nil {
 		return fmt.Errorf("schema is not registered: %w", err)

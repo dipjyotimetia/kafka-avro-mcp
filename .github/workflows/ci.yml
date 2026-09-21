@@ -1,5 +1,11 @@
 name: CI
-on: [pull_request]
+on:
+  pull_request:
+  # Merging is not the same event as proposing: without this, nothing verifies
+  # main after a merge commit or a direct push.
+  push:
+    branches: [main]
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -7,7 +13,16 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with: { go-version: '1.27.x' }
-      - run: go test ./...
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l ./cmd ./pkg ./examples)
+          if [ -n "$unformatted" ]; then
+            echo "gofmt needed for:"; echo "$unformatted"; exit 1
+          fi
+      # Builds every package, including the example server, which nothing else
+      # exercises.
+      - run: go build ./...
+      - run: go test -race ./...
       - run: go vet ./...
       # The Redpanda test is behind the `integration` tag so `go test ./...`
       # does not require Docker; vet it unconditionally so it cannot rot, and
@@ -17,3 +32,19 @@ jobs:
       - run: go run ./cmd/avro-gen-go-mcp validate --config examples/orders/kafka.mcp.yaml
       - run: go run ./cmd/avro-gen-go-mcp generate --config examples/orders/kafka.mcp.yaml --out examples/orders/gen
       - run: git diff --exit-code
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: '1.27.x' }
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          # Must be built with a Go at least as new as this module targets, or
+          # it refuses to load the config. v2.13.2's release binaries are
+          # built with Go 1.27.0.
+          version: v2.13.2
+          # Match the test job, which vets the integration-tagged file too;
+          # golangci-lint would otherwise skip it.
+          args: --build-tags=integration

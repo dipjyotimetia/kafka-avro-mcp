@@ -100,3 +100,46 @@ events:
 		}
 	}
 }
+
+func manifestWith(pkg, topic, subject string) []byte {
+	return []byte(`
+apiVersion: mcp.kafka/v1alpha1
+package: ` + pkg + `
+events:
+  - name: created
+    schema: created.avsc
+    kafka: { topic: "` + topic + `", subject: "` + subject + `" }
+    mcp: { tool: publish_order }
+`)
+}
+
+func TestLoadRejectsIllegalKafkaTopicNames(t *testing.T) {
+	for _, topic := range []string{"orders created", "orders/created", "orders:created", ".", "..", "orders#created"} {
+		if _, err := Load(manifestWith("orders", topic, "orders.created-value")); err == nil {
+			t.Errorf("Load() accepted %q as a Kafka topic", topic)
+		}
+	}
+	if _, err := Load(manifestWith("orders", "orders.created_v1-a", "orders.created-value")); err != nil {
+		t.Errorf("Load() rejected a legal topic: %v", err)
+	}
+}
+
+func TestLoadRejectsSubjectsUnsafeInARegistryURL(t *testing.T) {
+	for _, subject := range []string{"orders created", "orders/created-value", "orders?created", "orders#value"} {
+		if _, err := Load(manifestWith("orders", "orders.created", subject)); err == nil {
+			t.Errorf("Load() accepted %q as a registry subject", subject)
+		}
+	}
+}
+
+// The package name is interpolated straight into the generated source.
+func TestLoadRejectsPackageNamesThatAreNotGoIdentifiers(t *testing.T) {
+	for _, pkg := range []string{"my-events", "2events", "my events", "func", "range"} {
+		if _, err := Load(manifestWith(pkg, "orders.created", "orders.created-value")); err == nil {
+			t.Errorf("Load() accepted %q as a Go package name", pkg)
+		}
+	}
+	if _, err := Load(manifestWith("events", "orders.created", "orders.created-value")); err != nil {
+		t.Errorf("Load() rejected a valid package name: %v", err)
+	}
+}

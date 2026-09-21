@@ -3,6 +3,7 @@ package manifest
 
 import (
 	"fmt"
+	"go/token"
 	"regexp"
 	"strings"
 
@@ -12,6 +13,11 @@ import (
 const APIVersion = "mcp.kafka/v1alpha1"
 
 var toolName = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,63}$`)
+
+// kafkaName is Kafka's own legal topic charset. Topics are fixed at generation
+// time, so a typo here would otherwise only surface as a broker error on the
+// first publish.
+var kafkaName = regexp.MustCompile(`^[a-zA-Z0-9._-]{1,249}$`)
 
 type Config struct {
 	APIVersion string  `yaml:"apiVersion"`
@@ -52,6 +58,11 @@ func Load(data []byte) (*Config, error) {
 	if strings.TrimSpace(config.Package) == "" {
 		return nil, fmt.Errorf("package is required")
 	}
+	// The package name is interpolated straight into the generated file, so
+	// anything that is not an identifier becomes a confusing gofmt error.
+	if !token.IsIdentifier(config.Package) || token.Lookup(config.Package).IsKeyword() {
+		return nil, fmt.Errorf("package %q is not a valid Go package name", config.Package)
+	}
 	if len(config.Events) == 0 {
 		return nil, fmt.Errorf("at least one event is required")
 	}
@@ -66,6 +77,13 @@ func Load(data []byte) (*Config, error) {
 		}
 		if strings.TrimSpace(event.Kafka.Topic) == "" || strings.TrimSpace(event.Kafka.Subject) == "" {
 			return nil, fmt.Errorf("%s kafka.topic and kafka.subject are required", at)
+		}
+		if !kafkaName.MatchString(event.Kafka.Topic) || event.Kafka.Topic == "." || event.Kafka.Topic == ".." {
+			return nil, fmt.Errorf("%s kafka.topic %q is not a legal Kafka topic name", at, event.Kafka.Topic)
+		}
+		// The subject is placed in a Schema Registry URL path.
+		if strings.ContainsAny(event.Kafka.Subject, " \t\n/?#") {
+			return nil, fmt.Errorf("%s kafka.subject %q contains characters that are not safe in a registry URL", at, event.Kafka.Subject)
 		}
 		if strings.TrimSpace(event.MCP.Tool) == "" {
 			return nil, fmt.Errorf("%s mcp.tool is required", at)

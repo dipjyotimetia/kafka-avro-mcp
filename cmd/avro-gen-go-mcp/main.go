@@ -7,46 +7,67 @@ import (
 	"os"
 
 	"github.com/dipjyotimetia/kafka-avro-mcp/pkg/generator"
+	"github.com/dipjyotimetia/kafka-avro-mcp/pkg/runtime"
 	"github.com/dipjyotimetia/kafka-avro-mcp/pkg/validate"
-	"github.com/twmb/franz-go/pkg/sr"
 )
 
+const usage = "usage: avro-gen-go-mcp {generate|validate} --config kafka.mcp.yaml"
+
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: avro-gen-go-mcp {generate|validate} --config kafka.mcp.yaml")
+	if err := run(os.Args[1:]); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run(args []string) error {
+	if len(args) < 1 || (args[0] != "generate" && args[0] != "validate") {
+		fmt.Fprintln(os.Stderr, usage)
 		os.Exit(2)
 	}
-	flags := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
+	command := args[0]
+	flags := flag.NewFlagSet(command, flag.ExitOnError)
 	config := flags.String("config", "", "manifest path")
 	out := flags.String("out", "", "output directory (generate only)")
-	registryURL := flags.String("registry-url", "", "Schema Registry URL (validate only)")
-	_ = flags.Parse(os.Args[2:])
-	if *config == "" || (os.Args[1] == "generate" && *out == "") {
+	registryURL := flags.String("registry-url", "", "Schema Registry URL, or $SCHEMA_REGISTRY_URL (validate only)")
+	registryUser := flags.String("registry-user", "", "Schema Registry basic-auth user, or $SCHEMA_REGISTRY_USER (validate only)")
+	_ = flags.Parse(args[1:])
+
+	if *config == "" {
 		flags.Usage()
 		os.Exit(2)
 	}
-	switch os.Args[1] {
+
+	// A flag that does nothing for the chosen subcommand is far more likely to
+	// be a mistake than an intention, so say so rather than ignoring it.
+	switch command {
 	case "generate":
-		if err := generator.Generate(*config, *out); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+		if *registryURL != "" || *registryUser != "" {
+			return fmt.Errorf("--registry-url and --registry-user do not apply to %q", command)
 		}
-	case "validate":
-		var checker validate.Checker
-		if *registryURL != "" {
-			client, err := sr.NewClient(sr.URLs(*registryURL))
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-			checker = validate.RegistryChecker{Client: client}
+		if *out == "" {
+			flags.Usage()
+			os.Exit(2)
 		}
-		if err := validate.Config(context.Background(), *config, checker); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
+		return generator.Generate(*config, *out)
 	default:
-		fmt.Fprintln(os.Stderr, "usage: avro-gen-go-mcp {generate|validate} --config kafka.mcp.yaml")
-		os.Exit(2)
+		if *out != "" {
+			return fmt.Errorf("--out does not apply to %q", command)
+		}
+		checker, err := registryChecker(*registryURL, *registryUser)
+		if err != nil {
+			return err
+		}
+		return validate.Config(context.Background(), *config, checker)
 	}
+}
+
+// registryChecker builds the read-only Schema Registry gate, or nil when no
+// registry is configured.
+func registryChecker(url, user string) (validate.Checker, error) {
+	client, err := runtime.NewRegistryClient(url, user)
+	if err != nil || client == nil {
+		return nil, err
+	}
+	return validate.RegistryChecker{Client: client}, nil
 }
