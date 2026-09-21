@@ -13,7 +13,11 @@ type mcpGoAdapter struct{ server *server.MCPServer }
 func WrapMCPGo(server *server.MCPServer) MCPServer { return &mcpGoAdapter{server: server} }
 
 func (a *mcpGoAdapter) AddTool(tool ToolDefinition, handler ToolHandler) {
-	a.server.AddTool(mcp.NewToolWithRawSchema(tool.Name, tool.Description, tool.InputSchema), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	destructive := tool.Annotations.DestructiveHint
+	definition := mcp.NewToolWithRawSchema(tool.Name, tool.Description, tool.InputSchema)
+	definition.RawOutputSchema = tool.OutputSchema
+	definition.Annotations = mcp.ToolAnnotation{DestructiveHint: &destructive}
+	a.server.AddTool(definition, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments, err := json.Marshal(request.GetArguments())
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil

@@ -58,6 +58,7 @@ func Load(data []byte) (*Config, error) {
 
 	names := make(map[string]struct{}, len(config.Events))
 	tools := make(map[string]struct{}, len(config.Events))
+	identifiers := make(map[string]string, len(config.Events))
 	for i, event := range config.Events {
 		at := fmt.Sprintf("events[%d]", i)
 		if strings.TrimSpace(event.Name) == "" || strings.TrimSpace(event.Schema) == "" {
@@ -78,8 +79,27 @@ func Load(data []byte) (*Config, error) {
 		if _, ok := tools[event.MCP.Tool]; ok {
 			return nil, fmt.Errorf("duplicate MCP tool %q", event.MCP.Tool)
 		}
+		// Distinct tool names can still collapse to the same generated Go
+		// identifier (publish_order and publish-order both yield PublishOrder),
+		// which would emit duplicate declarations in the generated package.
+		identifier := Pascal(event.MCP.Tool)
+		if previous, ok := identifiers[identifier]; ok {
+			return nil, fmt.Errorf("MCP tools %q and %q both map to generated identifier %q", previous, event.MCP.Tool, identifier)
+		}
 		names[event.Name] = struct{}{}
 		tools[event.MCP.Tool] = struct{}{}
+		identifiers[identifier] = event.MCP.Tool
 	}
 	return &config, nil
+}
+
+// Pascal converts an MCP tool name into the Go identifier prefix used for its
+// generated declarations. Both the generator and the manifest's uniqueness
+// check depend on it, so it lives here rather than in the generator.
+func Pascal(value string) string {
+	parts := strings.FieldsFunc(value, func(r rune) bool { return r == '_' || r == '-' || r == '.' })
+	for i := range parts {
+		parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
+	}
+	return strings.Join(parts, "")
 }

@@ -9,6 +9,11 @@ jobs:
         with: { go-version: '1.27.x' }
       - run: go test ./...
       - run: go vet ./...
+      # The Redpanda test is behind the `integration` tag so `go test ./...`
+      # does not require Docker; vet it unconditionally so it cannot rot, and
+      # run it here where a Docker daemon is available.
+      - run: go vet -tags=integration ./...
+      - run: go test -tags=integration -run TestPublishAvroRecordThroughRedpanda ./pkg/runtime/
       - run: go run ./cmd/avro-gen-go-mcp validate --config examples/orders/kafka.mcp.yaml
       - run: go run ./cmd/avro-gen-go-mcp generate --config examples/orders/kafka.mcp.yaml --out examples/orders/gen
       - run: git diff --exit-code

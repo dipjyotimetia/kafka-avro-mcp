@@ -85,8 +85,11 @@ func (s *Service) Publish(ctx context.Context, tool Tool, payload map[string]any
 	if err != nil {
 		return PublishResult{}, fmt.Errorf("encode Avro payload: %w", err)
 	}
-	if len(encoded) > s.maxMessageBytes {
-		return PublishResult{}, fmt.Errorf("encoded Avro payload exceeds %d byte limit", s.maxMessageBytes)
+	// Count the wire-format header and the key: the broker sizes the whole
+	// record, not the Avro payload alone. Kafka also charges per-record batch
+	// overhead, so this remains a lower bound on what the broker sees.
+	if size := 5 + len(encoded) + len(key); size > s.maxMessageBytes {
+		return PublishResult{}, fmt.Errorf("record of %d bytes exceeds %d byte limit", size, s.maxMessageBytes)
 	}
 	value := make([]byte, 5+len(encoded))
 	binary.BigEndian.PutUint32(value[1:5], uint32(schemaID))

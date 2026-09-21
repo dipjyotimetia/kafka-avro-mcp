@@ -74,3 +74,29 @@ events:
 		t.Fatal("Load() accepted an unsafe MCP tool name")
 	}
 }
+
+func TestLoadRejectsToolNamesCollidingAfterPascalCasing(t *testing.T) {
+	for _, pair := range [][2]string{
+		{"publish_order", "publish-order"},
+		{"publish_order", "publish__order"},
+		{"publish_order", "_publish_order"},
+		{"publish_order", "publish_order_"},
+	} {
+		config := []byte(`
+apiVersion: mcp.kafka/v1alpha1
+package: orders
+events:
+  - name: created
+    schema: created.avsc
+    kafka: { topic: orders.created, subject: orders.created-value }
+    mcp: { tool: "` + pair[0] + `" }
+  - name: cancelled
+    schema: cancelled.avsc
+    kafka: { topic: orders.cancelled, subject: orders.cancelled-value }
+    mcp: { tool: "` + pair[1] + `" }
+`)
+		if _, err := Load(config); err == nil {
+			t.Errorf("Load() accepted %q and %q, which generate the same identifier %q", pair[0], pair[1], Pascal(pair[0]))
+		}
+	}
+}

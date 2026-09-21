@@ -1,3 +1,8 @@
+//go:build integration
+
+// Run with: go test -tags=integration ./pkg/runtime/
+// Requires a working Docker daemon.
+
 package runtime_test
 
 import (
@@ -24,10 +29,13 @@ func TestPublishAvroRecordThroughRedpanda(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	rp, err := redpanda.Run(ctx, "docker.redpanda.com/redpandadata/redpanda:v23.3.3", redpanda.WithAutoCreateTopics(), testcontainers.WithExposedPorts("9092/tcp", "9644/tcp", "8081/tcp", "8082/tcp"))
+	// Schedule teardown before the error check and independently of ctx: when the
+	// test exhausts its budget, ctx is already cancelled and Terminate(ctx) fails,
+	// orphaning the container (Ryuk is disabled above).
+	testcontainers.CleanupContainer(t, rp)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rp.Terminate(ctx)
 	broker, err := rp.KafkaSeedBroker(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -75,6 +83,9 @@ forissue:
 	}
 	if err == nil {
 		// Translate server error code
+		if len(resp.Topics) == 0 {
+			t.Fatalf("CreateTopics returned no topic results for %q", "orders.created")
+		}
 		err = kerr.ErrorForCode(resp.Topics[0].ErrorCode)
 		if errors.Is(err, kerr.TopicAlreadyExists) {
 			err = nil
@@ -103,6 +114,9 @@ forissue:
 		record := fetches.Records()[0]
 		if record.Topic != "orders.created" || string(record.Key) != "o-1" {
 			t.Fatalf("record = %#v", record)
+		}
+		if len(record.Value) < 5 {
+			t.Fatalf("record value = %v, want at least a 5-byte wire header", record.Value)
 		}
 		if record.Value[0] != 0 || int(binary.BigEndian.Uint32(record.Value[1:5])) != registered.ID {
 			t.Fatalf("wire header = %v", record.Value[:5])
