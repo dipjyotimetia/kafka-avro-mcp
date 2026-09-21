@@ -1,0 +1,50 @@
+pkg/generator/generator.go
+  s_ff4f6076b48cb0::t_a135b568fc5269 37,40
+README.md
+  s_ff4f6076b48cb0::t_5da07ba4678027 22
+pkg/validate/validate_test.go
+  s_ff4f6076b48cb0::t_9512e1c0823941 37-76
+pkg/validate/validate.go
+  s_ff4f6076b48cb0::t_3b6298d2ee1241 10
+  s_ff4f6076b48cb0::t_2508b50edee4f8 37-44
+  s_ff4f6076b48cb0::t_e27515130c0c87 60,63-67
+.github/workflows/ci.yml
+  s_ff4f6076b48cb0::t_cbedc03bd8b7fb 12-16
+pkg/manifest/manifest.go
+  s_ff4f6076b48cb0::t_776e8e45c6cb38 61
+  s_ff4f6076b48cb0::t_cc18cac04cc766 82,84-88,91,95-104
+  s_ff4f6076b48cb0::t_5764266b8a7bfa 83
+  s_ff4f6076b48cb0::t_4027d61b02755d 105
+pkg/runtime/mark3labs.go
+  s_ff4f6076b48cb0::t_fbb627f36a8335 16-20
+pkg/jsonschema/generator.go
+  s_ff4f6076b48cb0::t_6d8264f0176673 1-2,184-211
+  s_ff4f6076b48cb0::t_b4f78fe69a0960 212
+pkg/manifest/manifest_test.go
+  s_ff4f6076b48cb0::t_d2e3a130d50982 77-102
+pkg/runtime/service_test.go
+  s_ff4f6076b48cb0::t_1c36f93d6042e5 53-78
+pkg/runtime/service.go
+  s_ff4f6076b48cb0::t_a51932da877cb4 88-92
+pkg/runtime/mcp_test.go
+  s_ff4f6076b48cb0::t_4353dd39d07d62 7-8,33-67
+  s_ff4f6076b48cb0::t_cb956da33d5e4b 68
+pkg/runtime/integration_test.go
+  s_ff4f6076b48cb0::t_c2e7cc428332ca 1-5,32-35,86-88,118-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a3de2c05c0f90fa4f065ae7394a859be82bc5a5a",
+  "prompts": {},
+  "sessions": {
+    "s_ff4f6076b48cb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cc3ccf4b-53df-430f-80d0-ed3701e82040",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Dipjyoti Metia <dipjyotimetia@gmail.com>"
+    }
+  }
+}
