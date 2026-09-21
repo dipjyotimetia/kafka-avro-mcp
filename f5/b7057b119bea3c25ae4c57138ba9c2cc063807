@@ -1,0 +1,26 @@
+pkg/runtime/registry.go
+  s_afc89dfe01fccb::t_b6784947b9239b 45
+.github/workflows/ci.yml
+  s_afc89dfe01fccb::t_301c21e7054ffd 42,44-47
+  s_afc89dfe01fccb::t_0f143866ccf854 48-50
+pkg/validate/validate.go
+  s_afc89dfe01fccb::t_b6784947b9239b 58
+pkg/runtime/franz.go
+  s_afc89dfe01fccb::t_b6784947b9239b 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f5b7057b119bea3c25ae4c57138ba9c2cc063807",
+  "prompts": {},
+  "sessions": {
+    "s_afc89dfe01fccb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4eff8159-3a23-4582-9a3b-1ba8c9e57c55",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Dipjyoti Metia <dipjyotimetia@gmail.com>"
+    }
+  }
+}
