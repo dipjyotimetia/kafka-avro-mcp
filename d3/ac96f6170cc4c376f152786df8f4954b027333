@@ -1,0 +1,81 @@
+README.md
+  s_afc89dfe01fccb::t_e169333bdaaddc 31-32
+  s_afc89dfe01fccb::t_e43915fa808052 11-17,24,27-28,34-35
+pkg/runtime/registry.go
+  s_afc89dfe01fccb::t_fec413d72607d7 6,12-34
+  s_afc89dfe01fccb::t_29edff3ef69f4a 35
+pkg/runtime/service.go
+  s_afc89dfe01fccb::t_350562cfb84fe7 8,14-26,62,75-85,87,94-95,101-107,118,124,142,146
+pkg/runtime/mark3labs.go
+  s_afc89dfe01fccb::t_c2774cebe72212 21-30
+  s_afc89dfe01fccb::t_b0f4afeea05de8 16,19
+pkg/runtime/gosdk.go
+  s_afc89dfe01fccb::t_b0f4afeea05de8 15-16
+pkg/runtime/gosdk_test.go
+  s_afc89dfe01fccb::t_a1a0dd816dee53 1-33,35-38,40-117
+  s_afc89dfe01fccb::t_0f147c929cc609 34,39
+pkg/jsonschema/generator_test.go
+  s_afc89dfe01fccb::t_279051d238fd88 7,11-65,67-69,74,78-81,83-85,91-113,115-146,154-207
+  s_afc89dfe01fccb::t_61daa190ca50b5 114
+  s_afc89dfe01fccb::t_c697720402e1b5 147-153,208-242
+  s_afc89dfe01fccb::t_e259c1a6d28ec0 5-6,66
+examples/orders/server/main.go
+  s_afc89dfe01fccb::t_fec413d72607d7 56
+  s_afc89dfe01fccb::t_a099456d6bab60 1-55,57-72
+go.mod
+  s_afc89dfe01fccb::t_6d8851e5872527 8,13
+cmd/avro-gen-go-mcp/main.go
+  s_afc89dfe01fccb::t_fec413d72607d7 10,65-66,68-69
+  s_afc89dfe01fccb::t_6d003ca9529f97 14-15,17-23,25,28-29,32-36,40,43,48-50,52,57-64,67,70,72
+  s_afc89dfe01fccb::t_4702ba04acebd3 24,41-42,45-46,54-56
+pkg/jsonschema/generator.go
+  s_afc89dfe01fccb::t_f7d92a3b884882 17-23,253-257,261-263,265,268
+  s_afc89dfe01fccb::t_bcd73e8ed1c763 249,251-252,331
+  s_afc89dfe01fccb::t_824ade31277077 8-9,40-42,44-47,61-62,68-81,86-90,95-96,100,105-110,113-117,121-123,125,128,130-135,137-138,141,145,147-149,154,167,169,171,173,177,181,184,188,190-192,196,198,200,202,204,206,208,212-214,227,230-241,244-248,250,258-260,264,266-267,269-275,303-304,311-313,327-330
+  s_afc89dfe01fccb::t_fec413d72607d7 91-94,193-195,215-226,228-229
+pkg/runtime/payload_test.go
+  s_afc89dfe01fccb::t_925d6802f1032b 1-3,5-7,11-22,32-35,38-39,43-195
+  s_afc89dfe01fccb::t_c77fcf16b0a8d6 232-251,301-302
+  s_afc89dfe01fccb::t_efbde8a509503a 303-328
+  s_afc89dfe01fccb::t_e259c1a6d28ec0 23-31,36-37,40-42,269,291
+  s_afc89dfe01fccb::t_d3a62fdb4a1265 4,8-10,252-268,270-290,292-300
+  s_afc89dfe01fccb::t_88e02e880bdc9d 196-231
+pkg/manifest/manifest.go
+  s_afc89dfe01fccb::t_1abb6fcc9a65d7 6,17-21,61-65,81-87
+pkg/manifest/manifest_test.go
+  s_afc89dfe01fccb::t_6289dbd89eb83a 103-145
+pkg/runtime/payload.go
+  s_afc89dfe01fccb::t_b9ea698ee648b7 1-6,8,10-11,13-14,21,26-29,31-32,34-45,53,63,66,70,73,76,78,83,85-86,92-96,98-100,103,107-108,110,112-115,125,128-136,140,144,146,150,152,158,160,162,164-167,169-171,173-178,182-183,186,188,190-195,202,206,215,219,221
+  s_afc89dfe01fccb::t_391c1dd86869cb 9,55
+  s_afc89dfe01fccb::t_d11a308e5b34d0 69,159
+  s_afc89dfe01fccb::t_92782d304bbfab 7,12,15-20,22-25,30,33,46-52,54,56-62,64-65,67-68,71-72,74-75,77,79-82,84,87-91,97,101-102,104-106,109,111,116-124,126-127,137-139,141-143,145,147-149,151,153-157,161,163,168,172,179-181,184-185,187,189,196-201,203-205,207-214,216-218,220
+.github/workflows/ci.yml
+  s_afc89dfe01fccb::t_faa9879c988848 2-8,16-25,35-44
+pkg/runtime/mcp_test.go
+  s_afc89dfe01fccb::t_f71c082cc95ed7 8,10,75-114
+  s_afc89dfe01fccb::t_0f147c929cc609 56,71-74
+.gitignore
+  s_afc89dfe01fccb::t_faa9879c988848 1-7
+pkg/runtime/mcp.go
+  s_afc89dfe01fccb::t_c2774cebe72212 27-30
+  s_afc89dfe01fccb::t_d292ec71fbdc57 26
+  s_afc89dfe01fccb::t_6d8851e5872527 65
+  s_afc89dfe01fccb::t_bcd73e8ed1c763 72,87
+  s_afc89dfe01fccb::t_b0f4afeea05de8 6-9,14-17,44-47,49-64,69-71,76-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d3ac96f6170cc4c376f152786df8f4954b027333",
+  "prompts": {},
+  "sessions": {
+    "s_afc89dfe01fccb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4eff8159-3a23-4582-9a3b-1ba8c9e57c55",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Dipjyoti Metia <dipjyotimetia@gmail.com>"
+    }
+  }
+}
