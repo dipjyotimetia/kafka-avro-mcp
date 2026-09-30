@@ -1,9 +1,14 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
+	"log/slog"
+	"strings"
 	"testing"
+	"time"
 )
 
 type resolverStub struct{ id int }
@@ -74,5 +79,62 @@ func TestServiceCountsWireHeaderAndKeyAgainstLimit(t *testing.T) {
 	// The payload alone is 2 bytes; only counting it would let this through.
 	if err := publish(2); err == nil {
 		t.Fatal("Publish() sized the Avro payload instead of the produced record")
+	}
+}
+
+type failingResolver struct{}
+
+func (failingResolver) Resolve(context.Context, string, []byte) (int, error) {
+	return 0, errors.New("registry unreachable")
+}
+
+// A payload the caller can fix must be reported as such even while the
+// registry is down, rather than being masked by the infrastructure failure.
+func TestServiceReportsPayloadErrorsBeforeResolvingSchema(t *testing.T) {
+	service := NewService(failingResolver{}, &publisherStub{}, WithMaxMessageBytes(1))
+	_, err := service.Publish(context.Background(), Tool{Topic: "orders.created", Subject: "orders.created-value", Schema: []byte(`{"type":"record","name":"E","fields":[{"name":"value","type":"string"}]}`)}, map[string]any{"value": "too large"})
+	var payload PayloadError
+	if !errors.As(err, &payload) {
+		t.Fatalf("Publish() error = %v, want a PayloadError", err)
+	}
+}
+
+type blockingPublisher struct{}
+
+func (blockingPublisher) Publish(ctx context.Context, _ Event) (PublishResult, error) {
+	<-ctx.Done()
+	return PublishResult{}, ctx.Err()
+}
+
+func TestServiceBoundsPublishWithTimeout(t *testing.T) {
+	service := NewService(resolverStub{id: 1}, blockingPublisher{}, WithPublishTimeout(20*time.Millisecond))
+	done := make(chan error, 1)
+	go func() {
+		_, err := service.Publish(context.Background(), Tool{Topic: "orders.created", Subject: "orders.created-value", Schema: []byte(`{"type":"record","name":"E","fields":[{"name":"id","type":"string"}]}`)}, map[string]any{"id": "k"})
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Publish() error = %v, want deadline exceeded", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Publish() did not honour the publish timeout")
+	}
+}
+
+// A publish is a side effect an LLM chose to cause, so each one leaves a
+// record of where it landed.
+func TestServiceLogsEverySuccessfulPublish(t *testing.T) {
+	var log bytes.Buffer
+	service := NewService(resolverStub{id: 3}, &publisherStub{}, WithLogger(slog.New(slog.NewTextHandler(&log, nil))))
+	_, err := service.Publish(context.Background(), Tool{Name: "publish_order", Topic: "orders.created", Subject: "orders.created-value", Schema: []byte(`{"type":"record","name":"E","fields":[{"name":"id","type":"string"}]}`)}, map[string]any{"id": "k"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"level=INFO", "tool=publish_order", "topic=orders.created", "partition=2", "offset=7", "schemaId=3"} {
+		if !strings.Contains(log.String(), want) {
+			t.Errorf("log %q does not contain %q", log.String(), want)
+		}
 	}
 }

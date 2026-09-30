@@ -3,9 +3,12 @@
 package jsonschema
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"maps"
+	"math"
+	"slices"
 	"strings"
 
 	"github.com/twmb/avro"
@@ -66,16 +69,11 @@ func Convert(schemaJSON []byte) ([]byte, error) {
 	result := converted.(map[string]any)
 	result["$schema"] = draft202012
 
-	// Every $ref must resolve, or the tool advertises a schema no client can
-	// follow. Avro accepts these (avro.Parse ran above), so this is the only
-	// place a dangling reference can be caught before it ships to a model.
+	// $defs carries exactly the referenced types. typeSchema refuses a
+	// reference to anything not yet defined, so every one resolves.
 	defs := make(map[string]any, len(c.used))
 	for name := range c.used {
-		body, ok := c.defs[name]
-		if !ok {
-			return nil, fmt.Errorf("unresolved Avro type reference %q", name)
-		}
-		defs[name] = body
+		defs[name] = c.defs[name]
 	}
 	if len(defs) > 0 {
 		result["$defs"] = defs
@@ -145,6 +143,13 @@ func (c *converter) typeSchema(raw json.RawMessage, enclosing string) (any, erro
 			return schema, nil
 		}
 		name := c.resolve(text, enclosing)
+		// The specification allows references only to previously defined
+		// names. avro.Parse accepts a forward reference, but a registry built
+		// on the reference implementation rejects it, and a dangling $ref
+		// would ship a schema no client can follow.
+		if _, ok := c.defs[name]; !ok {
+			return nil, fmt.Errorf("reference to %q, which is not defined before its use", name)
+		}
 		c.used[name] = true
 		return map[string]any{"$ref": "#/$defs/" + name}, nil
 	}
@@ -180,7 +185,7 @@ func (c *converter) typeSchema(raw json.RawMessage, enclosing string) (any, erro
 	if !ok {
 		return nil, fmt.Errorf("unsupported Avro type")
 	}
-	if complex.Logical != "" {
+	if logicalType(complex.Logical, kind) {
 		return nil, fmt.Errorf("logical type %q is not supported in V1", complex.Logical)
 	}
 	switch kind {
@@ -190,6 +195,9 @@ func (c *converter) typeSchema(raw json.RawMessage, enclosing string) (any, erro
 		// Emitted inline, as it always has been, but also registered so a
 		// later reference to the same enum has something to resolve against.
 		schema := map[string]any{"type": "string", "enum": complex.Symbols}
+		if complex.Doc != "" {
+			schema["description"] = complex.Doc
+		}
 		if _, err := c.define(complex.Name, complex.Namespace, enclosing, schema); err != nil {
 			return nil, err
 		}
@@ -222,6 +230,11 @@ func (c *converter) typeSchema(raw json.RawMessage, enclosing string) (any, erro
 // another.
 func (c *converter) define(name string, namespace *string, enclosing string, body any) (string, error) {
 	full := fullname(name, namespace, enclosing)
+	// "Primitive type names ... may not be defined in any namespace."
+	// avro.Parse refuses them only in the null namespace.
+	if _, ok := primitiveSchema(full[strings.LastIndex(full, ".")+1:]); ok {
+		return "", fmt.Errorf("named type %q redefines a primitive type name", full)
+	}
 	if _, ok := c.defs[full]; ok {
 		return "", fmt.Errorf("duplicate Avro named type %q", full)
 	}
@@ -275,6 +288,32 @@ func namespaceOf(fullname string) string {
 	return ""
 }
 
+// logicalTypes maps each logical type the specification defines (1.12.0,
+// a superset of 1.10.x and 1.11.x) to the underlying types it may annotate.
+var logicalTypes = map[string][]string{
+	"decimal":                {"bytes", "fixed"},
+	"big-decimal":            {"bytes"},
+	"uuid":                   {"string", "fixed"},
+	"date":                   {"int"},
+	"time-millis":            {"int"},
+	"time-micros":            {"long"},
+	"timestamp-millis":       {"long"},
+	"timestamp-micros":       {"long"},
+	"timestamp-nanos":        {"long"},
+	"local-timestamp-millis": {"long"},
+	"local-timestamp-micros": {"long"},
+	"local-timestamp-nanos":  {"long"},
+	"duration":               {"fixed"},
+}
+
+// logicalType reports whether name is a genuine logical type on kind, which
+// V1 does not support. The specification has implementations ignore an
+// unknown logical type, or one on the wrong underlying type, and use the
+// underlying type — which is what the encoder does — so those pass through.
+func logicalType(name, kind string) bool {
+	return slices.Contains(logicalTypes[name], kind)
+}
+
 func primitive(raw json.RawMessage) (string, bool) {
 	var text string
 	return text, json.Unmarshal(raw, &text) == nil
@@ -286,8 +325,12 @@ func primitiveSchema(kind string) (map[string]any, bool) {
 		return map[string]any{"type": "null"}, true
 	case "boolean":
 		return map[string]any{"type": "boolean"}, true
-	case "int", "long":
-		return map[string]any{"type": "integer"}, true
+	// Avro's integers are fixed-width; advertising the range lets validation
+	// reject an overflow with a message naming the limit.
+	case "int":
+		return map[string]any{"type": "integer", "minimum": math.MinInt32, "maximum": math.MaxInt32}, true
+	case "long":
+		return map[string]any{"type": "integer", "minimum": int64(math.MinInt64), "maximum": int64(math.MaxInt64)}, true
 	case "float", "double":
 		return map[string]any{"type": "number"}, true
 	case "string":
@@ -320,8 +363,7 @@ func ValidateKey(field string, schemaJSON []byte) error {
 		if candidate.Name != field {
 			continue
 		}
-		var typ string
-		if json.Unmarshal(candidate.Type, &typ) != nil || typ != "string" {
+		if !plainString(candidate.Type) {
 			return fmt.Errorf("key field %q must be a non-null Avro string", field)
 		}
 		// A default would make the field optional in the generated schema
@@ -332,4 +374,43 @@ func ValidateKey(field string, schemaJSON []byte) error {
 		return nil
 	}
 	return fmt.Errorf("key field %q does not exist", field)
+}
+
+// MarkKey adds minLength 1 to the key field of a converted input schema: the
+// publisher rejects an empty key, so the advertised contract should too. An
+// empty field leaves the schema unchanged.
+func MarkKey(input []byte, field string) ([]byte, error) {
+	if field == "" {
+		return input, nil
+	}
+	// UseNumber keeps the long bounds exact; a float64 round trip would widen
+	// 2^63-1 to 9223372036854776000.
+	decoder := json.NewDecoder(bytes.NewReader(input))
+	decoder.UseNumber()
+	var schema map[string]any
+	if err := decoder.Decode(&schema); err != nil {
+		return nil, fmt.Errorf("decode input schema: %w", err)
+	}
+	properties, _ := schema["properties"].(map[string]any)
+	property, ok := properties[field].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("key field %q is not a property of the input schema", field)
+	}
+	property["minLength"] = 1
+	return json.Marshal(schema)
+}
+
+// plainString reports whether a type declaration is an Avro string in either
+// of its equivalent forms, "string" or {"type":"string"}, and not a logical
+// type built on one.
+func plainString(raw json.RawMessage) bool {
+	var name string
+	if json.Unmarshal(raw, &name) == nil {
+		return name == "string"
+	}
+	var declaration struct {
+		Type    string `json:"type"`
+		Logical string `json:"logicalType"`
+	}
+	return json.Unmarshal(raw, &declaration) == nil && declaration.Type == "string" && !logicalType(declaration.Logical, "string")
 }

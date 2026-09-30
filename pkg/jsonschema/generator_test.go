@@ -240,3 +240,66 @@ func TestConvertKeepsNullNamespaceTypeApartFromInheritedOne(t *testing.T) {
 		t.Errorf("$defs is missing r.Addr: %v", keys(defs))
 	}
 }
+
+// Avro int and long are fixed-width, and JSON Schema's integer is not; the
+// bounds let an out-of-range value fail validation with a message naming the
+// limit instead of reaching the encoder.
+func TestConvertAdvertisesIntegerBounds(t *testing.T) {
+	converted, err := Convert([]byte(`{"type":"record","name":"E","fields":[{"name":"i","type":"int"},{"name":"l","type":"long"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`"i":{"maximum":2147483647,"minimum":-2147483648,"type":"integer"}`,
+		`"l":{"maximum":9223372036854775807,"minimum":-9223372036854775808,"type":"integer"}`,
+	} {
+		if !strings.Contains(string(converted), want) {
+			t.Errorf("converted schema %s does not contain %s", converted, want)
+		}
+	}
+}
+
+// The publisher rejects an empty key, so the advertised schema should say so.
+func TestMarkKeyRequiresNonEmptyString(t *testing.T) {
+	input, err := Convert([]byte(`{"type":"record","name":"E","fields":[{"name":"id","type":"string"},{"name":"note","type":"string"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	marked, err := MarkKey(input, "id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Properties map[string]map[string]any `json:"properties"`
+	}
+	if err := json.Unmarshal(marked, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Properties["id"]["minLength"] != float64(1) {
+		t.Errorf("key property = %v, want minLength 1", got.Properties["id"])
+	}
+	if _, ok := got.Properties["note"]["minLength"]; ok {
+		t.Errorf("non-key property = %v, want no minLength", got.Properties["note"])
+	}
+	if unchanged, err := MarkKey(input, ""); err != nil || string(unchanged) != string(input) {
+		t.Errorf("MarkKey with no key changed the schema: %s (%v)", unchanged, err)
+	}
+}
+
+// MarkKey rewrites the whole schema, so it must not round the long bounds
+// through float64: 2^63-1 becomes 9223372036854776000, which admits values
+// no Avro long can hold.
+func TestMarkKeyPreservesLongBoundsExactly(t *testing.T) {
+	input, err := Convert([]byte(`{"type":"record","name":"E","fields":[{"name":"id","type":"string"},{"name":"at","type":"long"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	marked, err := MarkKey(input, "id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `"at":{"maximum":9223372036854775807,"minimum":-9223372036854775808,"type":"integer"}`
+	if !strings.Contains(string(marked), want) {
+		t.Fatalf("marked schema %s does not contain %s", marked, want)
+	}
+}

@@ -326,3 +326,32 @@ func TestRegisterToolDecodesBase64ThroughNamedTypeReferences(t *testing.T) {
 		}
 	}
 }
+
+// An int beyond 32 bits must fail at the schema, with a message the model can
+// act on, rather than as an encoder error.
+func TestRegisterToolRejectsOutOfRangeInt(t *testing.T) {
+	const schema = `{"type":"record","name":"Event","fields":[{"name":"count","type":"int"}]}`
+	result, publisher := publishThroughTool(t, schema, `{"count":2147483648}`)
+	if !result.IsError || !strings.Contains(result.Error, "input schema") {
+		t.Fatalf("result = %#v, want an input schema rejection", result)
+	}
+	if publisher.event.Topic != "" {
+		t.Fatalf("an out-of-range int was published: %#v", publisher.event)
+	}
+	if result, _ := publishThroughTool(t, schema, `{"count":2147483647}`); result.IsError {
+		t.Fatalf("the maximum int was rejected: %s", result.Error)
+	}
+}
+
+// The long bounds must not cost precision at the edge of the range.
+func TestRegisterToolAcceptsLongBounds(t *testing.T) {
+	const schema = `{"type":"record","name":"Event","fields":[{"name":"id","type":"long"}]}`
+	for _, id := range []string{"9223372036854775807", "-9223372036854775808"} {
+		if result, _ := publishThroughTool(t, schema, `{"id":`+id+`}`); result.IsError {
+			t.Errorf("id %s rejected: %s", id, result.Error)
+		}
+	}
+	if result, _ := publishThroughTool(t, schema, `{"id":9223372036854775808}`); !result.IsError {
+		t.Error("a long beyond int64 was accepted")
+	}
+}

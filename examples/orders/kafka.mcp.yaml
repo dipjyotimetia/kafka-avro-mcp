@@ -11,3 +11,13 @@ events:
     mcp:
       tool: publish_order_created
       description: Publish an OrderCreated domain event.
+  - name: order_placed
+    schema: order-placed.avsc
+    kafka:
+      topic: orders.placed
+      subject: orders.placed-value
+      key:
+        field: orderId
+    mcp:
+      tool: publish_order_placed
+      description: Publish an OrderPlaced domain event with its lines, addresses and category.

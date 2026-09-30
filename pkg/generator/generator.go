@@ -37,6 +37,9 @@ func Generate(configPath, outDir string) error {
 		if err := jsonschema.ValidateKey(event.Kafka.Key.Field, schema); err != nil {
 			return fmt.Errorf("validate key for %s: %w", event.Name, err)
 		}
+		if input, err = jsonschema.MarkKey(input, event.Kafka.Key.Field); err != nil {
+			return fmt.Errorf("mark key for %s: %w", event.Name, err)
+		}
 		events = append(events, generated{manifest.Pascal(event.MCP.Tool), event.MCP.Tool, string(schema), string(input), event.Kafka.Topic, event.Kafka.Subject, event.Kafka.Key.Field, event.MCP.Description})
 	}
 	var b strings.Builder

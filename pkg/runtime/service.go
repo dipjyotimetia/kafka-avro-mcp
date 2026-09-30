@@ -59,6 +59,7 @@ type Service struct {
 	resolver        SchemaResolver
 	publisher       Publisher
 	maxMessageBytes int
+	publishTimeout  time.Duration
 	logger          *slog.Logger
 }
 
@@ -68,6 +69,17 @@ func WithMaxMessageBytes(limit int) ServiceOption {
 	return func(s *Service) {
 		if limit > 0 {
 			s.maxMessageBytes = limit
+		}
+	}
+}
+
+// WithPublishTimeout bounds each publish, registry lookup included. MCP
+// requests rarely carry a deadline and a Kafka producer can retry an
+// unreachable broker indefinitely, so without a bound a tool call can hang.
+func WithPublishTimeout(timeout time.Duration) ServiceOption {
+	return func(s *Service) {
+		if timeout > 0 {
+			s.publishTimeout = timeout
 		}
 	}
 }
@@ -84,7 +96,7 @@ func WithLogger(logger *slog.Logger) ServiceOption {
 }
 
 func NewService(resolver SchemaResolver, publisher Publisher, options ...ServiceOption) *Service {
-	service := &Service{resolver: resolver, publisher: publisher, maxMessageBytes: 1 << 20, logger: slog.Default()}
+	service := &Service{resolver: resolver, publisher: publisher, maxMessageBytes: 1 << 20, publishTimeout: 30 * time.Second, logger: slog.Default()}
 	for _, option := range options {
 		option(service)
 	}
@@ -105,10 +117,8 @@ func (s *Service) publish(ctx context.Context, tool Tool, schema *avro.Schema, p
 	if tool.Topic == "" || tool.Subject == "" {
 		return PublishResult{}, fmt.Errorf("tool topic and subject are required")
 	}
-	schemaID, err := s.resolver.Resolve(ctx, tool.Subject, tool.Schema)
-	if err != nil {
-		return PublishResult{}, fmt.Errorf("resolve schema subject %q: %w", tool.Subject, err)
-	}
+	// Payload checks come first: they are the caller's to fix, and running
+	// them after the registry lookup would hide them behind an outage.
 	key, err := keyFor(tool.KeyField, payload)
 	if err != nil {
 		return PublishResult{}, err
@@ -123,6 +133,12 @@ func (s *Service) publish(ctx context.Context, tool Tool, schema *avro.Schema, p
 	if size := 5 + len(encoded) + len(key); size > s.maxMessageBytes {
 		return PublishResult{}, payloadErrorf("record of %d bytes exceeds %d byte limit", size, s.maxMessageBytes)
 	}
+	ctx, cancel := context.WithTimeout(ctx, s.publishTimeout)
+	defer cancel()
+	schemaID, err := s.resolver.Resolve(ctx, tool.Subject, tool.Schema)
+	if err != nil {
+		return PublishResult{}, fmt.Errorf("resolve schema subject %q: %w", tool.Subject, err)
+	}
 	value := make([]byte, 5+len(encoded))
 	binary.BigEndian.PutUint32(value[1:5], uint32(schemaID))
 	copy(value[5:], encoded)
@@ -130,6 +146,9 @@ func (s *Service) publish(ctx context.Context, tool Tool, schema *avro.Schema, p
 	if err != nil {
 		return PublishResult{}, fmt.Errorf("publish %q: %w", tool.Topic, err)
 	}
+	// Each publish is a side effect a model chose to cause; record where it
+	// landed. The payload stays out of the log, since it may carry user data.
+	s.logger.Info("published record", "tool", tool.Name, "topic", result.Topic, "partition", result.Partition, "offset", result.Offset, "schemaId", result.SchemaID)
 	return result, nil
 }
 
