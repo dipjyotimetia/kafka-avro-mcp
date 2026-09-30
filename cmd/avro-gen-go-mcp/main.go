@@ -13,7 +13,14 @@ import (
 	"github.com/dipjyotimetia/kafka-avro-mcp/pkg/validate"
 )
 
-const usage = "usage: avro-gen-go-mcp {generate|validate} --config kafka.mcp.yaml"
+const usage = "usage: avro-gen-go-mcp {generate|validate} --config kafka.mcp.yaml | avro-gen-go-mcp version"
+
+// Build metadata populated by GoReleaser ldflags (`-X main.version=...`).
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
 
 // usageError marks a mistake in how the command was invoked, which exits 2
 // rather than 1.
@@ -22,7 +29,7 @@ type usageError struct{ message string }
 func (e usageError) Error() string { return e.message }
 
 func main() {
-	if err := run(os.Args[1:], os.Stderr); err != nil {
+	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		if errors.As(err, new(usageError)) {
 			os.Exit(2)
@@ -31,7 +38,11 @@ func main() {
 	}
 }
 
-func run(args []string, stderr io.Writer) error {
+func run(args []string, stdout, stderr io.Writer) error {
+	if len(args) == 1 && args[0] == "version" {
+		_, err := fmt.Fprintf(stdout, "avro-gen-go-mcp %s (commit %s, built %s)\n", version, commit, date)
+		return err
+	}
 	if len(args) < 1 || (args[0] != "generate" && args[0] != "validate") {
 		return usageError{usage}
 	}

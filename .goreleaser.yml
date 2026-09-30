@@ -1,0 +1,102 @@
+# GoReleaser config for kafka-avro-mcp.
+#
+# Triggered by .github/workflows/release.yml on tag push (`v*`). Produces:
+#   - cross-compiled avro-gen-go-mcp binaries for darwin/linux/windows × amd64/arm64
+#   - .tar.gz / .zip archives, SHA256 checksums
+#   - a GitHub Release attaching every artifact
+#   - a Homebrew cask pushed to dipjyotimetia/homebrew-tap
+#
+# Validate locally with: goreleaser release --snapshot --clean --skip=publish
+version: 2
+
+project_name: kafka-avro-mcp
+
+before:
+  hooks:
+    - go mod tidy
+    - go vet ./...
+
+builds:
+  - id: avro-gen-go-mcp
+    main: ./cmd/avro-gen-go-mcp
+    binary: avro-gen-go-mcp
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: ["tar.gz"]
+    format_overrides:
+      - goos: windows
+        formats: ["zip"]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-dev"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+
+homebrew_casks:
+  - name: avro-gen-go-mcp
+    repository:
+      owner: dipjyotimetia
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: "https://github.com/dipjyotimetia/kafka-avro-mcp"
+    description: "Avro event contract → static Go MCP Kafka publish tools generator"
+    binaries:
+      - avro-gen-go-mcp
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+
+release:
+  github:
+    owner: dipjyotimetia
+    name: kafka-avro-mcp
+  draft: false
+  prerelease: auto
+  name_template: "v{{ .Version }}"
+  header: |
+    ## kafka-avro-mcp {{ .Tag }}
+
+    Install via Homebrew:
+    ```
+    brew install dipjyotimetia/tap/avro-gen-go-mcp
+    ```
+
+    Or grab a binary from the assets below.

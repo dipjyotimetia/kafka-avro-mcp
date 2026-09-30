@@ -22,6 +22,10 @@ cd integration && go test ./...
 # CLI
 go run ./cmd/avro-gen-go-mcp validate --config examples/orders/kafka.mcp.yaml [--registry-url URL --registry-user U]
 go run ./cmd/avro-gen-go-mcp generate --config examples/orders/kafka.mcp.yaml --out examples/orders/gen
+
+# Release: push a v* tag; .github/workflows/release.yml runs GoReleaser
+# (binaries + Homebrew cask in dipjyotimetia/homebrew-tap). Local dry run:
+goreleaser release --snapshot --clean --skip=publish
 ```
 
 CI regenerates `examples/orders/gen` and runs `git diff --exit-code`. Any change to the generator, JSON Schema converter or the example schemas must be followed by regenerating and committing `examples/orders/gen/tools.mcp.go` — never hand-edit it.

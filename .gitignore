@@ -5,3 +5,6 @@
 # Test and coverage output
 *.out
 *.test
+
+# GoReleaser output
+/dist/
