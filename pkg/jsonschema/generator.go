@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"math"
 	"strings"
 
 	"github.com/twmb/avro"
@@ -286,8 +287,12 @@ func primitiveSchema(kind string) (map[string]any, bool) {
 		return map[string]any{"type": "null"}, true
 	case "boolean":
 		return map[string]any{"type": "boolean"}, true
-	case "int", "long":
-		return map[string]any{"type": "integer"}, true
+	// Avro's integers are fixed-width; advertising the range lets validation
+	// reject an overflow with a message naming the limit.
+	case "int":
+		return map[string]any{"type": "integer", "minimum": math.MinInt32, "maximum": math.MaxInt32}, true
+	case "long":
+		return map[string]any{"type": "integer", "minimum": int64(math.MinInt64), "maximum": int64(math.MaxInt64)}, true
 	case "float", "double":
 		return map[string]any{"type": "number"}, true
 	case "string":
@@ -332,4 +337,24 @@ func ValidateKey(field string, schemaJSON []byte) error {
 		return nil
 	}
 	return fmt.Errorf("key field %q does not exist", field)
+}
+
+// MarkKey adds minLength 1 to the key field of a converted input schema: the
+// publisher rejects an empty key, so the advertised contract should too. An
+// empty field leaves the schema unchanged.
+func MarkKey(input []byte, field string) ([]byte, error) {
+	if field == "" {
+		return input, nil
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(input, &schema); err != nil {
+		return nil, fmt.Errorf("decode input schema: %w", err)
+	}
+	properties, _ := schema["properties"].(map[string]any)
+	property, ok := properties[field].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("key field %q is not a property of the input schema", field)
+	}
+	property["minLength"] = 1
+	return json.Marshal(schema)
 }

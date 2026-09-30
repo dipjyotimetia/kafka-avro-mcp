@@ -143,3 +143,49 @@ func TestLoadRejectsPackageNamesThatAreNotGoIdentifiers(t *testing.T) {
 		t.Errorf("Load() rejected a valid package name: %v", err)
 	}
 }
+
+// A misspelled field would otherwise be dropped silently; for kafka.key that
+// means publishing keyless records, which changes partitioning and ordering.
+func TestLoadRejectsUnknownFields(t *testing.T) {
+	_, err := Load([]byte(`
+apiVersion: mcp.kafka/v1alpha1
+package: orders
+events:
+  - name: created
+    schema: created.avsc
+    kafka: { topic: orders.created, subject: orders.created-value, key: { feild: orderId } }
+    mcp: { tool: publish_order }
+`))
+	if err == nil {
+		t.Fatal("Load() accepted a misspelled kafka.key field")
+	}
+}
+
+// validate promises that an accepted manifest generates, so anything that
+// would produce an invalid or unbuildable Go package must fail here.
+func TestLoadRejectsManifestsThatCannotGenerate(t *testing.T) {
+	for name, manifest := range map[string]string{
+		"tool yields a digit-led identifier": `
+apiVersion: mcp.kafka/v1alpha1
+package: orders
+events:
+  - name: created
+    schema: created.avsc
+    kafka: { topic: orders.created, subject: orders.created-value }
+    mcp: { tool: _1abc }
+`,
+		"package main": `
+apiVersion: mcp.kafka/v1alpha1
+package: main
+events:
+  - name: created
+    schema: created.avsc
+    kafka: { topic: orders.created, subject: orders.created-value }
+    mcp: { tool: publish_order }
+`,
+	} {
+		if _, err := Load([]byte(manifest)); err == nil {
+			t.Errorf("%s: Load() succeeded", name)
+		}
+	}
+}

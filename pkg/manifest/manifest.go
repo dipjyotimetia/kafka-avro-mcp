@@ -2,6 +2,7 @@
 package manifest
 
 import (
+	"bytes"
 	"fmt"
 	"go/token"
 	"regexp"
@@ -49,7 +50,11 @@ type MCP struct {
 
 func Load(data []byte) (*Config, error) {
 	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	// A misspelled key would otherwise vanish silently; for kafka.key that
+	// means publishing keyless records rather than failing.
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&config); err != nil {
 		return nil, fmt.Errorf("parse manifest: %w", err)
 	}
 	if config.APIVersion != APIVersion {
@@ -62,6 +67,11 @@ func Load(data []byte) (*Config, error) {
 	// anything that is not an identifier becomes a confusing gofmt error.
 	if !token.IsIdentifier(config.Package) || token.Lookup(config.Package).IsKeyword() {
 		return nil, fmt.Errorf("package %q is not a valid Go package name", config.Package)
+	}
+	// The generated file declares no main function, so package main would
+	// not build.
+	if config.Package == "main" {
+		return nil, fmt.Errorf("package must not be main")
 	}
 	if len(config.Events) == 0 {
 		return nil, fmt.Errorf("at least one event is required")
@@ -101,6 +111,11 @@ func Load(data []byte) (*Config, error) {
 		// identifier (publish_order and publish-order both yield PublishOrder),
 		// which would emit duplicate declarations in the generated package.
 		identifier := Pascal(event.MCP.Tool)
+		// The regex admits names like _1abc whose identifier starts with a
+		// digit, which would only surface as a gofmt error during generation.
+		if !token.IsIdentifier(identifier + "Tool") {
+			return nil, fmt.Errorf("%s mcp.tool %q does not map to a valid Go identifier", at, event.MCP.Tool)
+		}
 		if previous, ok := identifiers[identifier]; ok {
 			return nil, fmt.Errorf("MCP tools %q and %q both map to generated identifier %q", previous, event.MCP.Tool, identifier)
 		}

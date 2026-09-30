@@ -8,7 +8,7 @@ import (
 )
 
 var PublishOrderCreatedTool = runtime.Tool{Name: "publish_order_created", Topic: "orders.created", Subject: "orders.created-value", KeyField: "orderId", Schema: []byte("{\n  \"type\": \"record\",\n  \"name\": \"OrderCreated\",\n  \"namespace\": \"orders.v1\",\n  \"fields\": [\n    {\"name\": \"orderId\", \"type\": \"string\"},\n    {\"name\": \"customerId\", \"type\": \"string\"},\n    {\"name\": \"amount\", \"type\": \"double\"}\n  ]\n}\n")}
-var PublishOrderCreatedInputSchema = json.RawMessage("{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"additionalProperties\":false,\"properties\":{\"amount\":{\"type\":\"number\"},\"customerId\":{\"type\":\"string\"},\"orderId\":{\"type\":\"string\"}},\"required\":[\"orderId\",\"customerId\",\"amount\"],\"type\":\"object\"}")
+var PublishOrderCreatedInputSchema = json.RawMessage("{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"additionalProperties\":false,\"properties\":{\"amount\":{\"type\":\"number\"},\"customerId\":{\"type\":\"string\"},\"orderId\":{\"minLength\":1,\"type\":\"string\"}},\"required\":[\"orderId\",\"customerId\",\"amount\"],\"type\":\"object\"}")
 
 func RegisterTools(server runtime.MCPServer, service *runtime.Service) {
 	runtime.RegisterTool(server, service, PublishOrderCreatedTool, PublishOrderCreatedInputSchema, "Publish an OrderCreated domain event.")

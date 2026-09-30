@@ -1,4 +1,4 @@
-package runtime
+package gosdk_test
 
 import (
 	"context"
@@ -6,8 +6,21 @@ import (
 	"testing"
 
 	"github.com/dipjyotimetia/kafka-avro-mcp/pkg/jsonschema"
+	"github.com/dipjyotimetia/kafka-avro-mcp/pkg/runtime"
+	"github.com/dipjyotimetia/kafka-avro-mcp/pkg/runtime/gosdk"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+type resolverStub struct{ id int }
+
+func (r resolverStub) Resolve(context.Context, string, []byte) (int, error) { return r.id, nil }
+
+type publisherStub struct{ event runtime.Event }
+
+func (p *publisherStub) Publish(_ context.Context, event runtime.Event) (runtime.PublishResult, error) {
+	p.event = event
+	return runtime.PublishResult{Topic: event.Topic, Partition: 2, Offset: 7, SchemaID: event.SchemaID}, nil
+}
 
 // connectGoSDK registers a tool on a real go-sdk server and returns a client
 // session talking to it over an in-memory transport. The go-sdk path had no
@@ -21,8 +34,8 @@ func connectGoSDK(t *testing.T, avroSchema string) (*gomcp.ClientSession, *publi
 	}
 	publisher := &publisherStub{}
 	server := gomcp.NewServer(&gomcp.Implementation{Name: "kafka-avro-mcp", Version: "0.0.1"}, nil)
-	RegisterTool(WrapGoSDK(server), NewService(resolverStub{id: 9}, publisher),
-		Tool{Name: "publish_order", Topic: "orders.created", Subject: "orders.created-value", KeyField: "id", Schema: []byte(avroSchema)},
+	runtime.RegisterTool(gosdk.Wrap(server), runtime.NewService(resolverStub{id: 9}, publisher),
+		runtime.Tool{Name: "publish_order", Topic: "orders.created", Subject: "orders.created-value", KeyField: "id", Schema: []byte(avroSchema)},
 		json.RawMessage(input), "Publish an order.")
 
 	ctx := context.Background()
@@ -85,6 +98,19 @@ func TestWrapGoSDKPublishesAValidCall(t *testing.T) {
 	}
 	if string(publisher.event.Key) != "o-1" || publisher.event.Topic != "orders.created" {
 		t.Fatalf("published event = %#v", publisher.event)
+	}
+	// Hosts that ignore structuredContent read only content, so the result
+	// must also travel there as serialized JSON.
+	if len(result.Content) != 1 {
+		t.Fatalf("content = %#v, want one text block", result.Content)
+	}
+	text, ok := result.Content[0].(*gomcp.TextContent)
+	if !ok {
+		t.Fatalf("content[0] = %#v, want text", result.Content[0])
+	}
+	var published runtime.PublishResult
+	if err := json.Unmarshal([]byte(text.Text), &published); err != nil || published.Topic != "orders.created" || published.Offset != 7 {
+		t.Fatalf("text content = %q (%v)", text.Text, err)
 	}
 }
 

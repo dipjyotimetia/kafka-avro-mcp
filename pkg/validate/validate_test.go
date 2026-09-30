@@ -2,10 +2,15 @@ package validate
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/twmb/franz-go/pkg/sr"
 )
 
 type checkerStub struct{ compatible bool }
@@ -72,5 +77,65 @@ func TestConfigRejectsWhateverGenerationRejects(t *testing.T) {
 				t.Fatal("Config() accepted a manifest that generation would reject")
 			}
 		})
+	}
+}
+
+// fakeRegistry answers the two read-only calls RegistryChecker makes and
+// records the compatibility path it was asked about.
+func fakeRegistry(t *testing.T, registered, compatible bool) (*sr.Client, *string) {
+	t.Helper()
+	var compatibilityPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/vnd.schemaregistry.v1+json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/subjects/events-value":
+			if !registered {
+				w.WriteHeader(http.StatusNotFound)
+				_ = json.NewEncoder(w).Encode(map[string]any{"error_code": 40403, "message": "Schema not found"})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"subject": "events-value", "version": 1, "id": 7, "schema": `{"type":"string"}`})
+		case r.Method == http.MethodPost && r.URL.Path == "/compatibility/subjects/events-value/versions/latest":
+			compatibilityPath = r.URL.Path
+			_ = json.NewEncoder(w).Encode(map[string]any{"is_compatible": compatible})
+		default:
+			t.Errorf("unexpected registry call %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client, err := sr.NewClient(sr.URLs(server.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return client, &compatibilityPath
+}
+
+func TestRegistryCheckerRequiresRegisteredSchemaCompatibleWithLatest(t *testing.T) {
+	schema := []byte(`{"type":"record","name":"Event","fields":[{"name":"id","type":"string"}]}`)
+	ctx := context.Background()
+
+	client, path := fakeRegistry(t, true, true)
+	if err := (RegistryChecker{Client: client}).Check(ctx, "events-value", schema); err != nil {
+		t.Fatalf("Check() error = %v", err)
+	}
+	// Checking against the looked-up version would compare the schema with
+	// itself and never fail; the gate must ask about the latest version.
+	if *path != "/compatibility/subjects/events-value/versions/latest" {
+		t.Errorf("compatibility checked at %q, want the latest version", *path)
+	}
+
+	client, _ = fakeRegistry(t, false, true)
+	if err := (RegistryChecker{Client: client}).Check(ctx, "events-value", schema); err == nil {
+		t.Error("Check() accepted an unregistered schema")
+	}
+
+	client, _ = fakeRegistry(t, true, false)
+	if err := (RegistryChecker{Client: client}).Check(ctx, "events-value", schema); err == nil {
+		t.Error("Check() accepted a schema incompatible with the latest version")
+	}
+
+	if err := (RegistryChecker{}).Check(ctx, "events-value", schema); err == nil {
+		t.Error("Check() succeeded without a client")
 	}
 }

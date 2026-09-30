@@ -1,18 +1,22 @@
-package runtime
+// Package mcpgo adapts a mark3labs/mcp-go server to the runtime's SDK-neutral
+// MCPServer. It lives in its own package so that consumers compile only the
+// MCP SDK they actually use.
+package mcpgo
 
 import (
 	"context"
 	"encoding/json"
 
+	"github.com/dipjyotimetia/kafka-avro-mcp/pkg/runtime"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-type mcpGoAdapter struct{ server *server.MCPServer }
+type adapter struct{ server *server.MCPServer }
 
-func WrapMCPGo(server *server.MCPServer) MCPServer { return &mcpGoAdapter{server: server} }
+func Wrap(server *server.MCPServer) runtime.MCPServer { return &adapter{server: server} }
 
-func (a *mcpGoAdapter) AddTool(tool ToolDefinition, handler ToolHandler) {
+func (a *adapter) AddTool(tool runtime.ToolDefinition, handler runtime.ToolHandler) {
 	destructive, idempotent := tool.Annotations.DestructiveHint, tool.Annotations.IdempotentHint
 	definition := mcp.NewToolWithRawSchema(tool.Name, tool.Description, tool.InputSchema)
 	definition.RawOutputSchema = tool.OutputSchema
@@ -29,7 +33,7 @@ func (a *mcpGoAdapter) AddTool(tool ToolDefinition, handler ToolHandler) {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 		}
-		result := handler(ctx, CallToolRequest{Arguments: arguments})
+		result := handler(ctx, runtime.CallToolRequest{Arguments: arguments})
 		if result.IsError {
 			return mcp.NewToolResultError(result.Error), nil
 		}

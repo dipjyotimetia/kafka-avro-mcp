@@ -1,9 +1,11 @@
-//go:build integration
-
-// Run with: go test -tags=integration ./pkg/runtime/
+// Package integration exercises the runtime against a real broker and Schema
+// Registry. It is its own module so that testcontainers and its Docker
+// dependencies stay out of the library's go.mod.
+//
+// Run with: cd integration && go test ./...
 // Requires a working Docker daemon.
 
-package runtime_test
+package integration
 
 import (
 	"context"

@@ -31,7 +31,7 @@ events:
 		t.Fatal(err)
 	}
 	text := string(generated)
-	for _, want := range []string{"RegisterTools", "runtime.MCPServer", "orders.created", "orders.created-value", "publish_order_created"} {
+	for _, want := range []string{"RegisterTools", "runtime.MCPServer", "orders.created", "orders.created-value", "publish_order_created", `\"minLength\":1`} {
 		if !strings.Contains(text, want) {
 			t.Errorf("generated output does not contain %q", want)
 		}
