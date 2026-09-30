@@ -35,13 +35,21 @@ You describe which events a model may publish; the generator emits Go code that 
 
 ## Installation
 
-Requires Go 1.27 or later.
+Install the code generator with Homebrew (macOS, Linux):
 
-Install the code generator:
+```bash
+brew install dipjyotimetia/tap/avro-gen-go-mcp
+```
+
+Or with Go (1.27 or later):
 
 ```bash
 go install github.com/dipjyotimetia/kafka-avro-mcp/cmd/avro-gen-go-mcp@latest
 ```
+
+Or download a pre-built archive for your OS and architecture from the [latest release](https://github.com/dipjyotimetia/kafka-avro-mcp/releases/latest) and put `avro-gen-go-mcp` on your `PATH`. Check the install with `avro-gen-go-mcp version`.
+
+Generated code imports this module's runtime, so the module hosting your MCP server needs Go 1.27 or later.
 
 Add the runtime to the module that hosts your MCP server:
 

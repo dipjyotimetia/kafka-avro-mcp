@@ -40,9 +40,14 @@ func TestPublishAvroRecordThroughRedpanda(t *testing.T) {
 	// Docker Desktop's port-forwarding can prevent Ryuk from becoming ready;
 	// this test always terminates its own container.
 	t.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
+	// Starting the container includes pulling the image, which on a cold CI
+	// runner can take most of a minute or more; keep it out of the budget for
+	// the test itself.
+	startCtx, cancelStart := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancelStart()
+	c := startCluster(startCtx, t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
-	c := startCluster(ctx, t)
 
 	t.Run("simple order", func(t *testing.T) {
 		schema := []byte(`{"type":"record","name":"OrderCreated","fields":[{"name":"orderId","type":"string"}]}`)
@@ -132,7 +137,7 @@ func (s *serverStub) AddTool(_ runtime.ToolDefinition, handler runtime.ToolHandl
 
 func startCluster(ctx context.Context, t *testing.T) *cluster {
 	t.Helper()
-	rp, err := redpanda.Run(ctx, "docker.redpanda.com/redpandadata/redpanda:v23.3.3", redpanda.WithAutoCreateTopics(), testcontainers.WithExposedPorts("9092/tcp", "9644/tcp", "8081/tcp", "8082/tcp"))
+	rp, err := redpanda.Run(ctx, "redpandadata/redpanda:v23.3.3", redpanda.WithAutoCreateTopics(), testcontainers.WithExposedPorts("9092/tcp", "9644/tcp", "8081/tcp", "8082/tcp"))
 	// Schedule teardown before the error check and independently of ctx: when the
 	// test exhausts its budget, ctx is already cancelled and Terminate(ctx) fails,
 	// orphaning the container (Ryuk is disabled above).
