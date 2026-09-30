@@ -1,0 +1,49 @@
+pkg/jsonschema/generator_test.go
+  s_09e23170b142c4::t_a402742883a41e 288-305
+pkg/runtime/complex_test.go
+  s_09e23170b142c4::t_068f563670334a 1-143,149-163,165-172
+  s_09e23170b142c4::t_2fbf8b9d60ed78 144-145,147-148,164
+  s_09e23170b142c4::t_7f1493de19d6f4 146
+pkg/jsonschema/generator.go
+  s_09e23170b142c4::t_38b9f19e163f0b 11,72-73,76,146-152,188,198-200,233-237,291-316,366,402-416
+  s_09e23170b142c4::t_7823d9903e6eee 6,386-389,391
+pkg/runtime/spec_test.go
+  s_09e23170b142c4::t_da1ddfb0532628 1-150,155-190
+  s_09e23170b142c4::t_1877e93b05265d 151-154
+README.md
+  s_09e23170b142c4::t_4de994f998f5ed 29
+examples/orders/kafka.mcp.yaml
+  s_09e23170b142c4::t_27164ba8442158 14-23
+examples/orders/gen/tools.mcp.go
+  s_09e23170b142c4::t_7823d9903e6eee 14
+  s_09e23170b142c4::t_27164ba8442158 13,15,18
+pkg/jsonschema/spec_test.go
+  s_09e23170b142c4::t_9bed716414c033 1-214
+examples/orders/order-placed.avsc
+  s_09e23170b142c4::t_dd4d93856254d1 1-93
+integration/redpanda_test.go
+  s_09e23170b142c4::t_ba9fc32e8ec1dd 13,16,20,24,31-38,43,45-134,155,159-161,163-167,171,176,183-187,189-197,199-202,204,206-210,214,224,230,233
+pkg/jsonschema/complex_test.go
+  s_09e23170b142c4::t_774d95d63d255b 1-74
+integration/go.mod
+  s_09e23170b142c4::t_a7647956af1087 9
+pkg/runtime/payload.go
+  s_09e23170b142c4::t_691750cda98a13 80-83,85,91-97,135,170
+  s_09e23170b142c4::t_0929aa1866ed80 59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2d0485b0c66aa0b277049361b95436838651988b",
+  "prompts": {},
+  "sessions": {
+    "s_09e23170b142c4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b545e3c-30bd-40cd-8416-69da86a26555",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Dipjyoti Metia <dipjyotimetia@gmail.com>"
+    }
+  }
+}
