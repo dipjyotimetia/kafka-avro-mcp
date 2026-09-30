@@ -1,0 +1,21 @@
+README.md
+  s_ff7a1ccfbcaa65::t_003d4fc981ade1 37-109
+CLAUDE.md
+  s_ff7a1ccfbcaa65::t_fa4935969421a8 1-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "db24efc3977c8cce0bb12e68cf749d5e43483a2a",
+  "prompts": {},
+  "sessions": {
+    "s_ff7a1ccfbcaa65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a6075a-b2c9-4b69-ad25-e42b63c6af0c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Dipjyoti Metia <dipjyotimetia@gmail.com>"
+    }
+  }
+}
