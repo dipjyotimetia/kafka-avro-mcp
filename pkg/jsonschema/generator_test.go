@@ -285,3 +285,21 @@ func TestMarkKeyRequiresNonEmptyString(t *testing.T) {
 		t.Errorf("MarkKey with no key changed the schema: %s (%v)", unchanged, err)
 	}
 }
+
+// MarkKey rewrites the whole schema, so it must not round the long bounds
+// through float64: 2^63-1 becomes 9223372036854776000, which admits values
+// no Avro long can hold.
+func TestMarkKeyPreservesLongBoundsExactly(t *testing.T) {
+	input, err := Convert([]byte(`{"type":"record","name":"E","fields":[{"name":"id","type":"string"},{"name":"at","type":"long"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	marked, err := MarkKey(input, "id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `"at":{"maximum":9223372036854775807,"minimum":-9223372036854775808,"type":"integer"}`
+	if !strings.Contains(string(marked), want) {
+		t.Fatalf("marked schema %s does not contain %s", marked, want)
+	}
+}

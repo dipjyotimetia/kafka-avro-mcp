@@ -56,7 +56,7 @@ func newArguments(toolName string, input json.RawMessage, schema *avro.Schema) *
 
 // index records every named definition and reports whether the tree contains
 // a bytes field. Definitions carry a namespace the parser has already
-// resolved, so nothing here re-derives Avro's naming rules.
+// resolved; nodeName applies the one rule it leaves undone, for dotted names.
 func (a *arguments) index(node *avro.SchemaNode) bool {
 	if node == nil {
 		return false
@@ -77,11 +77,22 @@ func (a *arguments) index(node *avro.SchemaNode) bool {
 	return found
 }
 
+// nodeName is a definition's Avro fullname. The parser keeps the name and
+// namespace attributes as written, so a dotted name — already a fullname,
+// whose namespace attribute the specification says to ignore — is returned
+// as is rather than prefixed.
 func nodeName(node *avro.SchemaNode) string {
-	if node.Namespace == "" {
+	if node.Namespace == "" || strings.Contains(node.Name, ".") {
 		return node.Name
 	}
 	return node.Namespace + "." + node.Name
+}
+
+// nodeNamespace is the namespace a bare reference inside node binds to: that
+// of its fullname.
+func nodeNamespace(node *avro.SchemaNode) string {
+	name := nodeName(node)
+	return name[:max(strings.LastIndex(name, "."), 0)]
 }
 
 // decode validates the arguments against the advertised schema and converts
@@ -121,7 +132,7 @@ func (a *arguments) decode(raw json.RawMessage) (map[string]any, error) {
 // enclosing is the namespace a bare type reference binds to.
 func (a *arguments) adapt(node *avro.SchemaNode, enclosing string, value any) (any, error) {
 	if definition, ok := a.resolve(node.Type, enclosing); ok {
-		node, enclosing = definition, definition.Namespace
+		node, enclosing = definition, nodeNamespace(definition)
 	}
 	switch node.Type {
 	case "bytes":
@@ -156,7 +167,7 @@ func (a *arguments) adapt(node *avro.SchemaNode, enclosing string, value any) (a
 			if !ok {
 				continue
 			}
-			adapted, err := a.adapt(&field.Type, node.Namespace, entry)
+			adapted, err := a.adapt(&field.Type, nodeNamespace(node), entry)
 			if err != nil {
 				return nil, fmt.Errorf("field %q: %w", field.Name, err)
 			}

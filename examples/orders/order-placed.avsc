@@ -1,0 +1,93 @@
+{
+  "type": "record",
+  "name": "OrderPlaced",
+  "namespace": "orders.v1",
+  "doc": "An order a customer has placed, with its lines, addresses and classification.",
+  "fields": [
+    {"name": "orderId", "type": "string", "doc": "Unique order identifier; also the Kafka message key."},
+    {"name": "placedAt", "type": "long", "doc": "Epoch nanoseconds at which the order was placed."},
+    {
+      "name": "status",
+      "doc": "Current lifecycle status.",
+      "type": {"type": "enum", "name": "OrderStatus", "symbols": ["PENDING", "CONFIRMED", "SHIPPED", "CANCELLED"]}
+    },
+    {"name": "previousStatus", "type": ["null", "OrderStatus"], "default": null},
+    {
+      "name": "customer",
+      "type": {
+        "type": "record",
+        "name": "Customer",
+        "fields": [
+          {"name": "id", "type": "string"},
+          {"name": "email", "type": ["null", "string"], "default": null},
+          {
+            "name": "address",
+            "type": {
+              "type": "record",
+              "name": "Address",
+              "namespace": "common.v1",
+              "fields": [
+                {"name": "line1", "type": "string"},
+                {"name": "line2", "type": ["null", "string"], "default": null},
+                {"name": "city", "type": "string"},
+                {"name": "postcode", "type": "string"},
+                {"name": "country", "type": "string", "default": "GB"}
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {"name": "shippingAddress", "type": ["null", "common.v1.Address"], "default": null},
+    {
+      "name": "lines",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "LineItem",
+          "fields": [
+            {"name": "sku", "type": "string"},
+            {"name": "quantity", "type": "int"},
+            {"name": "unitPriceMinor", "type": "long"},
+            {"name": "attributes", "type": {"type": "map", "values": "string"}, "default": {}},
+            {
+              "name": "discount",
+              "type": [
+                "null",
+                {
+                  "type": "record",
+                  "name": "Discount",
+                  "fields": [
+                    {"name": "code", "type": "string"},
+                    {"name": "amountMinor", "type": "long"}
+                  ]
+                }
+              ],
+              "default": null
+            }
+          ]
+        }
+      }
+    },
+    {"name": "tags", "type": {"type": "array", "items": "string"}, "default": []},
+    {"name": "metadata", "type": {"type": "map", "values": ["null", "string"]}},
+    {"name": "notes", "type": ["null", {"type": "array", "items": "string"}], "default": null},
+    {"name": "attachments", "type": {"type": "map", "values": "bytes"}, "default": {}},
+    {"name": "signature", "type": ["null", "bytes"], "default": null},
+    {
+      "name": "category",
+      "type": {
+        "type": "record",
+        "name": "Category",
+        "fields": [
+          {"name": "name", "type": "string"},
+          {"name": "parent", "type": ["null", "Category"], "default": null}
+        ]
+      }
+    },
+    {"name": "priority", "type": "float"},
+    {"name": "giftWrap", "type": "boolean", "default": false},
+    {"name": "total", "type": "double"}
+  ]
+}
