@@ -34,4 +34,77 @@ Each manifest event declares a Schema Registry subject explicitly. At runtime th
 
 Failures are split by who can act on them. A payload problem — a key field missing, a record over the size ceiling, a value the encoder rejects — goes back to the caller in full so a model can correct itself. These checks run before the registry lookup, so a registry outage never masks them. A broker or registry failure can carry hostnames and internal addresses, so the tool result names only the topic and the detail goes to the `runtime.WithLogger` logger (`slog.Default()` otherwise). Every successful publish is also logged there at Info with its tool, topic, partition, offset and schema ID — never its payload — as an audit trail of what a model caused.
 
+## Architecture
+
+Work happens in two phases. At build time the CLI turns a manifest and its Avro schemas into Go constants. At run time those constants are registered as MCP tools, and each tool call becomes one Kafka record.
+
+### Build time
+
+```mermaid
+flowchart LR
+    M[kafka.mcp.yaml] --> L[manifest.Load]
+    A[*.avsc] --> C[jsonschema.Convert]
+    L --> C
+    C --> K[jsonschema.ValidateKey<br/>jsonschema.MarkKey]
+    K --> G[generator.Generate]
+    G --> O["gen/tools.mcp.go<br/>Tool + InputSchema constants<br/>RegisterTools()"]
+
+    L -.-> V[validate.Config]
+    A -.-> V
+    V -. "--registry-url" .-> SR[(Schema Registry<br/>lookup + compatibility,<br/>read-only)]
+```
+
+`validate` runs the same checks as `generate`, so a manifest that validates will always generate. With `--registry-url` it also confirms that each subject already holds the schema and that the schema is compatible with the subject's latest version. It never registers anything.
+
+### Run time
+
+```mermaid
+flowchart LR
+    Host[MCP host / model] -->|tools/call| SDK
+    subgraph Server process
+        SDK["go-sdk or mcp-go server"] --> AD["gosdk.Wrap / mcpgo.Wrap"]
+        AD --> RT["runtime.RegisterTool<br/>input schema check,<br/>base64 → bytes"]
+        RT --> S[runtime.Service]
+        S --> R[RegistryResolver]
+        S --> P[KafkaPublisher]
+    end
+    R -->|lookup only| SR[(Schema Registry)]
+    P -->|fixed topic| KB[(Kafka)]
+```
+
+The generated `RegisterTools` depends only on `runtime.MCPServer`. The adapters live in their own packages, so a server compiles only the MCP SDK it uses.
+
+### One tool call
+
+```mermaid
+sequenceDiagram
+    participant H as MCP host
+    participant T as RegisterTool handler
+    participant S as Service
+    participant R as Schema Registry
+    participant K as Kafka
+
+    H->>T: arguments (JSON)
+    T->>T: validate against input schema, decode base64
+    T->>S: publish(payload)
+    S->>S: extract key, Avro-encode, size check
+    Note over S: payload errors return here, before any network call
+    S->>R: lookup(subject, schema)
+    R-->>S: schema ID
+    S->>K: produce(topic, key, 0x0 + ID + Avro)
+    K-->>S: partition, offset
+    S-->>T: PublishResult (audit-logged)
+    T-->>H: structured result
+```
+
+### Errors
+
+| Failure | Returned to the model | Logged |
+|---|---|---|
+| Schema violation, missing key, encode error, size limit (`runtime.PayloadError`) | Full message | — |
+| Registry or broker failure | "publishing to `<topic>` failed" | Full error, with tool, topic and subject |
+| Success | Topic, partition, offset, schema ID, timestamp | Info audit line, without the payload |
+
+## Integration test
+
 The Redpanda integration test is a separate module, so testcontainers never enters the library's dependency graph. Run it with a Docker daemon available: `cd integration && go test ./...`.
