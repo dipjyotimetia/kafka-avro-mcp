@@ -1,6 +1,7 @@
 # kafka-avro-mcp
 
 [![CI](https://github.com/dipjyotimetia/kafka-avro-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/dipjyotimetia/kafka-avro-mcp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Go Reference](https://pkg.go.dev/badge/github.com/dipjyotimetia/kafka-avro-mcp.svg)](https://pkg.go.dev/github.com/dipjyotimetia/kafka-avro-mcp)
 
 `kafka-avro-mcp` compiles an Avro event contract plus an explicit Kafka/MCP overlay into safe, fixed-topic [MCP](https://modelcontextprotocol.io) producer tools for Go.
@@ -18,6 +19,9 @@ You describe which events a model may publish; the generator emits Go code that 
 - [Configuration](#configuration)
 - [Architecture](#architecture)
 - [Development](#development)
+- [Contributing](#contributing)
+- [Security](#security)
+- [License](#license)
 
 ## Features
 
@@ -342,4 +346,12 @@ cd integration && go test ./...
 
 ## Contributing
 
-Issues and pull requests are welcome. Please make sure `go test -race ./...`, `go vet ./...`, `gofmt` and `golangci-lint` pass, and that `examples/orders/gen` is regenerated, before opening a pull request.
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow, and note that this project follows a [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Security
+
+Please report vulnerabilities privately, as described in [SECURITY.md](SECURITY.md), rather than in a public issue.
+
+## License
+
+[MIT](LICENSE)
